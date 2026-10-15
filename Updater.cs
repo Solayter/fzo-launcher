@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 
 namespace FZO {
-    public class Catalog { public int schema; public long sequence, issuedAt, expiresAt; public List<ServerInfo> servers; }
+    public class Catalog { public int schema; public long sequence, issuedAt, expiresAt; public List<ServerInfo> servers; public LauncherRelease launcher; }
     public class ServerInfo { public string id, name, version, manifest, host; public int port; internal bool FromTrustedCatalog; }
     public class FileEntry { public string path, sha256, mode; public long size; }
     public class Manifest { public int schema; public string id, version; public List<FileEntry> files; }
@@ -133,14 +133,17 @@ namespace FZO {
         }
         public async Task<Catalog> GetCatalog(CancellationToken token) {
             byte[] bytes = await transport.Read("launcher/catalog.signed.json", 131072, token);
+            lock (UpdateTrust.CacheGate) {
             var catalog = UpdateTrust.Authenticate(bytes, trustedPublicKey, catalogCache);
             if (catalog == null || catalog.schema != 1 || catalog.servers == null || catalog.servers.Count != 2 ||
                 catalog.servers.Select(s => s.id).Distinct().Count() != 2 || catalog.servers.Any(s => (s.id != "beta" && s.id != "industrial") || !IsHash(s.manifest)
                     || s.host != "friendzone-order.duckdns.org" || s.port != (s.id == "beta" ? 25565 : 25566)))
                 throw new InvalidDataException("Неподдерживаемый каталог серверов.");
+            if (catalog.launcher != null) LauncherUpdate.Validate(catalog.launcher);
             foreach (var server in catalog.servers) server.FromTrustedCatalog = true;
             UpdateTrust.Remember(bytes, catalogCache);
             return catalog;
+            }
         }
         static string Internal(string root, string relative) {
             if (relative == ".fzo-installed.json") return Path.Combine(root, relative);

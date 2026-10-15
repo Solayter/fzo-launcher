@@ -171,5 +171,45 @@ class Tests {
         bool unauthorized = false;
         try { await updater.Update(new ServerInfo { id = "industrial", manifest = new string('a',64) }, root, progress, CancellationToken.None); } catch (InvalidDataException) { unauthorized = true; }
         Assert(unauthorized, "update cannot bypass catalog authentication");
+
+        Assert(!LauncherUpdate.Newer(null, new Version("1.1.0.0")), "legacy catalog without launcher release is supported");
+        byte[] candidate = File.ReadAllBytes(typeof(Tests).Assembly.Location);
+        var release = new LauncherRelease { version = "1.2.0.0", sha256 = Updater.Hash(candidate), size = candidate.Length };
+        Assert(LauncherUpdate.Newer(release, new Version("1.1.0.0")), "new launcher version is detected");
+        Assert(!LauncherUpdate.Newer(release, new Version("1.2.0.0")) && !LauncherUpdate.Newer(release, new Version("1.3.0.0")), "same or older launcher is never offered");
+        Assert(Throws(() => LauncherUpdate.Validate(new LauncherRelease { version = "bad", sha256 = release.sha256, size = release.size })), "invalid launcher version is rejected");
+        Assert(Throws(() => LauncherUpdate.Validate(new LauncherRelease { version = release.version, sha256 = "bad", size = release.size })), "invalid launcher hash is rejected");
+        Assert(Throws(() => LauncherUpdate.Validate(new LauncherRelease { version = release.version, sha256 = release.sha256, size = 100000000 })), "oversized launcher is rejected");
+        var selfCatalog = TestCatalog(new string('a', 64), "unchanged-game"); selfCatalog.launcher = release;
+        web.Data["launcher/catalog.signed.json"] = Signed(selfCatalog, SigningKey);
+        web.Data["launcher/objects/" + release.sha256] = candidate;
+        string selfFolder = Path.Combine(root, "self");
+        string stagedExe = await LauncherUpdate.Prepare(web, selfFolder, publicKey, null, new Version("1.1.0.0"), n => {}, CancellationToken.None);
+        Assert(Updater.Hash(stagedExe) == release.sha256 && File.Exists(Path.Combine(Path.GetDirectoryName(stagedExe), "catalog.signed.json")), "self-update stages exact verified EXE and signed catalog");
+        web.Corrupt = true;
+        Assert(Throws(() => LauncherUpdate.Prepare(web, selfFolder, publicKey, null, new Version("1.1.0.0"), n => {}, CancellationToken.None).GetAwaiter().GetResult()), "corrupt self-update is rejected before execution");
+        web.Corrupt = false; web.Cancel = true;
+        Assert(Throws(() => LauncherUpdate.Prepare(web, selfFolder, publicKey, null, new Version("1.1.0.0"), n => {}, CancellationToken.None).GetAwaiter().GetResult()), "cancelled self-update is rejected");
+        web.Cancel = false;
+        Assert(Directory.GetDirectories(selfFolder).Length == 1, "failed and cancelled self-update staging is removed");
+        Assert(Throws(() => LauncherUpdate.VerifyFile(stagedExe, new LauncherRelease {version="1.3.0.0", sha256=release.sha256, size=release.size})), "EXE assembly version must match signed version");
+        string oldExe = Path.Combine(root, "Launcher with spaces.exe");
+        File.Copy(Path.GetFullPath(Path.Combine(root, "../../dist/OldLauncher.exe")), oldExe);
+        string oldExeHash = Updater.Hash(oldExe);
+        Assert(Throws(() => LauncherUpdate.Replace(stagedExe, oldExe, release, new string('b',64))) && Updater.Hash(oldExe) == oldExeHash, "changed original launcher cannot be overwritten");
+        using (var lockedExe = new FileStream(oldExe, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            Assert(Throws(() => LauncherUpdate.Replace(stagedExe, oldExe, release, oldExeHash)), "locked original launcher fails safely");
+        }
+        Assert(Updater.Hash(oldExe) == oldExeHash, "failed replacement retains working original");
+        string oldBackup = LauncherUpdate.Replace(stagedExe, oldExe, release, oldExeHash);
+        Assert(Updater.Hash(oldExe) == release.sha256 && Updater.Hash(oldBackup) == oldExeHash, "atomic self-update preserves exact old EXE backup");
+        Assert(Throws(() => LauncherUpdate.Replace(stagedExe, oldExe, release, release.sha256)), "helper rejects reinstall and rollback");
+        var tamperedSelf = Json.Parse<CatalogEnvelope>(web.Data["launcher/catalog.signed.json"]);
+        selfCatalog.launcher.sha256 = new string('f',64);
+        tamperedSelf.payload = Convert.ToBase64String(Bytes(Json.Serializer.Serialize(selfCatalog)));
+        web.Data["launcher/catalog.signed.json"] = Bytes(Json.Serializer.Serialize(tamperedSelf));
+        int beforeSelfDownload = web.Downloads;
+        Assert(Throws(() => LauncherUpdate.Prepare(web, selfFolder, publicKey, null, new Version("1.1.0.0"), n => {}, CancellationToken.None).GetAwaiter().GetResult()) && web.Downloads == beforeSelfDownload, "tampered launcher metadata cannot trigger a download");
+
     }
 }

@@ -14,7 +14,7 @@ ALLOWED = {
     '.gitignore', '.gitattributes', '.github/CODEOWNERS', '.github/workflows/build.yml',
     'README.md', 'LICENSE', 'NOTICE.md', 'SECURITY.md', 'PRIVACY.md',
     'CODE_SIGNING_POLICY.md', 'SIGNPATH_APPLICATION.md',
-    'Launcher.cs', 'Updater.cs', 'SignedCatalog.cs', 'app.manifest',
+    'Launcher.cs', 'Updater.cs', 'LauncherUpdate.cs', 'SignedCatalog.cs', 'app.manifest',
     'FZO-Launcher.exe.config', 'build.ps1', 'test.ps1', 'publish.py',
     'sign-catalog.ps1', 'prepare-owl-assets.ps1',
     'assets/owl.png', 'assets/owl.ico', 'assets/owl-minecraft-master.png',

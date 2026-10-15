@@ -115,6 +115,8 @@ def main():
     parser.add_argument('--public-root', type=Path, required=True)
     parser.add_argument('--signing-key', type=Path, required=True, help='DPAPI-protected private key outside the website and repository')
     parser.add_argument('--powershell', default=shutil.which('pwsh') or shutil.which('powershell'), help='PowerShell executable used for the local signer')
+    parser.add_argument('--launcher-exe', type=Path, help='Final reviewed (and signed, when available) launcher EXE')
+    parser.add_argument('--launcher-version', help='Four-part assembly version, for example 1.2.0.0')
     parser.add_argument('--beta', type=Path, required=True)
     parser.add_argument('--industrial', type=Path, required=True)
     parser.add_argument('--beta-version', default='b1.7.3-current')
@@ -124,16 +126,37 @@ def main():
     servers = [publish_client(args.beta, 'beta', args.beta_version),
                publish_client(args.industrial, 'industrial', args.industrial_version)]
     catalog = dict(schema=1, servers=servers)
+    if bool(args.launcher_exe) != bool(args.launcher_version):
+        raise ValueError('Specify both --launcher-exe and --launcher-version')
+    if args.launcher_exe:
+        if not re.fullmatch(r'[1-9][0-9]*\.[0-9]+\.[0-9]+\.[0-9]+', args.launcher_version):
+            raise ValueError('Launcher requires a four-part version')
+        data = args.launcher_exe.read_bytes()
+        if not 1024 <= len(data) <= 32 * 1024 * 1024:
+            raise ValueError('Invalid launcher size')
+        sha = hashlib.sha256(data).hexdigest()
+        destination = OUTPUT / 'objects' / sha
+        if destination.exists() and destination.read_bytes() != data:
+            raise ValueError('Existing launcher object is corrupt')
+        if not destination.exists():
+            temporary_exe = destination.with_suffix('.pending')
+            temporary_exe.write_bytes(data)
+            os.replace(temporary_exe, destination)
+        catalog['launcher'] = dict(version=args.launcher_version, sha256=sha, size=len(data))
+
     # Signing must succeed before publishing either live catalog.
     temporary = OUTPUT / 'catalog.pending.json'
     atomic_json(temporary, catalog)
     try:
         if not args.powershell:
             raise RuntimeError('PowerShell is required for the local signer.')
+        preserve = []
+        if not args.launcher_exe and (OUTPUT / 'catalog.signed.json').exists():
+            preserve = ['-PreserveLauncherFrom', str(OUTPUT / 'catalog.signed.json')]
         subprocess.run([args.powershell, '-NoProfile', '-NonInteractive', '-File',
                         str(Path(__file__).with_name('sign-catalog.ps1')), '-Mode', 'Sign',
                         '-KeyFile', str(args.signing_key.resolve()), '-CatalogFile', str(temporary),
-                        '-OutputFile', str(OUTPUT / 'catalog.signed.json')], check=True)
+                        '-OutputFile', str(OUTPUT / 'catalog.signed.json')] + preserve, check=True)
         atomic_json(OUTPUT / 'catalog.json', catalog)
     finally:
         temporary.unlink(missing_ok=True)
