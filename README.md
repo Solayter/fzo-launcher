@@ -95,11 +95,27 @@ Settings are stored in `%LOCALAPPDATA%\FZO\launcher`; clients default to
 `%LOCALAPPDATA%\FZO\clients\beta` and `industrial`. A different client root
 can be selected in the menu. The launcher does not use the normal `.minecraft`.
 
+Since 1.2.3, achievements and statistics are stored beside the nickname settings
+under `%LOCALAPPDATA%\FZO\launcher\player-data\<beta|industrial>\stats`.
+On first launch, existing client statistics are imported and the original folder
+is retained as `stats.before-fzo-<id>`. A Windows directory junction connects the
+game's `stats` directory to this permanent storage, so saves reach it during
+gameplay even if the launcher closes. Launcher/client updates and changing the
+client directory reuse the same storage. Beta and Industrial remain separate;
+Minecraft retains its own nickname-based statistics filenames. Existing permanent
+files take priority over stale copies in a newly selected client; the complete
+old copy remains in the migration backup. Local Windows storage with directory
+junction support is required. A migration error stops launch without discarding
+the existing statistics. No administrator elevation is requested.
+
 To uninstall, close Minecraft and the launcher, delete the launcher EXE and its
 optional config, and delete `%LOCALAPPDATA%\FZO\launcher`. Delete the chosen
 client directories only if you no longer need their worlds, screenshots and
 settings; back them up first. No service, startup entry or scheduled task is
 installed.
+
+Back up `player-data` before deleting the launcher settings folder if you want
+to retain achievements. The game's `stats` junction is a link to that data.
 
 Minecraft, Java, mods and complete game distributions are **not included** in
 this source repository and are not relicensed by this project. External client

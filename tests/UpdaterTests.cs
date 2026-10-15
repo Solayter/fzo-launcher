@@ -59,6 +59,7 @@ class Tests {
         }
     }
     static async Task Run(string root) {
+        StatsPersistence(root);
         var web = new FakeTransport(); var updater = new Updater(web, SigningKey.ToXmlString(false)); var progress = new IgnoreProgress();
         foreach (string bad in new[] { "../escape", "/absolute", "C:/outside", "mods/../../x", "mods\\evil", "mods/a:ads", "mods/CON.jar", "mods/trailing.", ".fzo-installed.json", "mods//file" })
             Assert(Throws(() => Updater.SafePath(root, bad)), "reject unsafe path " + bad);
@@ -211,5 +212,60 @@ class Tests {
         int beforeSelfDownload = web.Downloads;
         Assert(Throws(() => LauncherUpdate.Prepare(web, selfFolder, publicKey, null, new Version("1.1.0.0"), n => {}, CancellationToken.None).GetAwaiter().GetResult()) && web.Downloads == beforeSelfDownload, "tampered launcher metadata cannot trigger a download");
 
+    }
+    static void StatsPersistence(string root) {
+        string folder = Path.Combine(root, "launcher-settings"), clients = Path.Combine(root, "stats-clients");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "settings.json"), "NICKNAME");
+        foreach (string id in new[] { "industrial", "beta" }) {
+            string client = Path.Combine(clients, id), stats = Path.Combine(client, PlayerStats.Relative(id));
+            string durable = PlayerStats.Storage(folder, id);
+            Directory.CreateDirectory(stats);
+            File.WriteAllText(Path.Combine(stats, "stats_Player_unsent.dat"), "OLD-" + id);
+            File.WriteAllText(Path.Combine(stats, "stats_Player.dat"), "PROGRESS-" + id);
+            using (PlayerStats.Open(folder, id, client)) {
+                Assert(PlayerStats.IsLinked(stats, folder, id), id + " stats write directly beside nickname settings");
+                Assert(File.ReadAllText(Path.Combine(durable, "stats_Player.dat")) == "PROGRESS-" + id, id + " existing achievements migrate intact");
+                File.WriteAllText(Path.Combine(stats, "stats_Player.dat"), "NEW-" + id);
+                Assert(File.ReadAllText(Path.Combine(durable, "stats_Player.dat")) == "NEW-" + id, id + " saves persist during gameplay without an exit callback");
+                Assert(Throws(() => PlayerStats.Open(folder, id, Path.Combine(root, "other-client"))), id + " simultaneous writers are rejected");
+                if (id == "industrial") {
+                    var transport = new FakeTransport(); Object(transport, "UPDATED-MOD");
+                    var release = Release(transport, "stats-fix", Entry("game/mods/stats-fix.jar", "UPDATED-MOD", "managed"));
+                    new Updater(transport, SigningKey.ToXmlString(false)).Update(release, client, new IgnoreProgress(), CancellationToken.None).GetAwaiter().GetResult();
+                    Assert(PlayerStats.IsLinked(stats, folder, id) && File.ReadAllText(Path.Combine(durable, "stats_Player.dat")) == "NEW-" + id,
+                        "client version update preserves the stats junction and achievement bytes");
+                    release = Release(transport, "bad-stats", Entry("game/stats/stats_Player.dat", "RESET", "managed"));
+                    Assert(Throws(() => new Updater(transport, SigningKey.ToXmlString(false)).Update(release, client, new IgnoreProgress(), CancellationToken.None).GetAwaiter().GetResult()),
+                        "client manifest cannot overwrite persistent achievement files");
+                }
+            }
+            Assert(Directory.GetDirectories(Path.GetDirectoryName(stats), "stats.before-fzo-*").Length == 1, id + " migration retains the complete original backup");
+            using (PlayerStats.Open(folder, id, client)) Assert(File.ReadAllText(Path.Combine(stats, "stats_Player.dat")) == "NEW-" + id, id + " launcher restart preserves progress");
+            // Remove only the junction, as if installing a fresh client directory.
+            Directory.Delete(stats, false);
+            Directory.CreateDirectory(stats);
+            File.WriteAllText(Path.Combine(stats, "stats_Player.dat"), "STALE");
+            File.WriteAllText(Path.Combine(stats, "stats_Other.dat"), "OTHER-NICK");
+            using (PlayerStats.Open(folder, id, client)) {
+                Assert(File.ReadAllText(Path.Combine(stats, "stats_Player.dat")) == "NEW-" + id, id + " stale client cannot reset canonical achievements");
+                Assert(File.ReadAllText(Path.Combine(stats, "stats_Other.dat")) == "OTHER-NICK", id + " migration retains other nicknames");
+            }
+        }
+        string copied = Path.Combine(root, "copied-stats-clients");
+        ClientFolders.Copy(clients, copied, folder);
+        foreach (string id in new[] { "industrial", "beta" }) {
+            string client = Path.Combine(copied, id), stats = Path.Combine(client, PlayerStats.Relative(id));
+            Assert(!Directory.Exists(stats), id + " client relocation does not duplicate or traverse the personal-data junction");
+            using (PlayerStats.Open(folder, id, client)) Assert(File.ReadAllText(Path.Combine(stats, "stats_Player.dat")) == "NEW-" + id, id + " changed client directory reuses saved achievements");
+            Directory.Delete(stats, false);
+            Directory.Delete(Path.Combine(clients, id, PlayerStats.Relative(id)), false);
+        }
+        Assert(File.ReadAllText(Path.Combine(folder, "settings.json")) == "NICKNAME", "achievement migration leaves nickname settings intact");
+        Assert(Throws(() => PlayerStats.Open(folder, "../outside", root)), "unknown stats profile cannot escape persistent storage");
+        string blocked = Path.Combine(root, "blocked-stats-client"), blockedStats = Path.Combine(blocked, PlayerStats.Relative("industrial"));
+        Directory.CreateDirectory(Path.GetDirectoryName(blockedStats)); File.WriteAllText(blockedStats, "DO NOT REPLACE");
+        Assert(Throws(() => PlayerStats.Open(folder, "industrial", blocked)), "unexpected stats file stops migration safely");
+        Assert(File.ReadAllText(blockedStats) == "DO NOT REPLACE", "failed migration retains original data");
     }
 }
