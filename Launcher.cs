@@ -13,8 +13,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("FZO Launcher")]
 [assembly: System.Reflection.AssemblyProduct("FZO Launcher")]
-[assembly: System.Reflection.AssemblyVersion("1.2.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.1.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.2.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.2.0")]
 
 namespace FZO {
     public class Settings {
@@ -148,7 +148,7 @@ namespace FZO {
             launcherUpdate.Click += async delegate {
                 if (availableLauncher == null) await CheckLauncher(true); else await InstallLauncher();
             };
-            LabelAt(side, "FZO LAUNCHER  /  1.2.1", 24, 539, 210, 22, 9, MutedColor);
+            LabelAt(side, "FZO LAUNCHER  /  1.2.2", 24, 539, 210, 22, 9, MutedColor);
             LabelAt(this, "ТВОЙ СЕРВЕР. ТВОЯ ИГРА.", 282, 37, 400, 22, 9, AccentColor);
             menu = ButtonAt(this, "☰  Меню", 750, 27, 116, 40, false); menu.AccessibleName = "Меню и настройки";
             title = LabelAt(this, "Industrial", 279, 100, 585, 55, 30, TextColor);
@@ -279,7 +279,7 @@ namespace FZO {
                     if (phase != p.Message) { previousDone = 0; lastTime = watch.Elapsed.TotalSeconds; phase = p.Message; }
                     double elapsed = watch.Elapsed.TotalSeconds - lastTime;
                     string rate = elapsed > 0.3 ? " · " + ((p.Done - previousDone) / 1048576.0 / elapsed).ToString("0.0") + " МБ/с" : "";
-                    detail.Text = (p.Done / 1048576.0).ToString("0.1") + " / " + (p.Total / 1048576.0).ToString("0.1") + " МБ" + rate;
+                    detail.Text = (p.Done / 1048576.0).ToString("0.0") + " / " + (p.Total / 1048576.0).ToString("0.0") + " МБ" + rate;
                     if (elapsed > 1) { previousDone = p.Done; lastTime = watch.Elapsed.TotalSeconds; }
                 } else { phase = p.Message; detail.Text = "Ваши миры и личные настройки сохраняются."; }
             });
