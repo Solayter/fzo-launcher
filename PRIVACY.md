@@ -5,6 +5,11 @@ maximum memory and minimize preference locally. It does not request Minecraft
 passwords, server `/login` passwords, Microsoft credentials or administrator
 passwords. There is no analytics SDK or advertising.
 
+Achievements and statistics are also stored locally under
+`%LOCALAPPDATA%\FZO\launcher\player-data`, separately for Beta and Industrial,
+and are not uploaded by the launcher. Existing client statistics are migrated
+automatically with an original backup retained in the client directory.
+
 On opening the launcher or changing server selection it requests public server
 status and a signed catalog over HTTPS to check the launcher version. Clicking
 Update downloads the new launcher EXE after confirmation. On Play or Verify Files
@@ -24,3 +29,5 @@ before sharing them; they are not automatically uploaded by the launcher.
 Deleting local launcher settings removes saved preferences and the trusted
 catalog cache. Client worlds/settings remain in their selected directories
 until the user deletes them.
+Deleting the entire launcher settings folder also deletes its persistent
+`player-data` achievements; back up that folder before uninstalling.

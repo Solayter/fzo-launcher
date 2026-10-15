@@ -13,8 +13,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("FZO Launcher")]
 [assembly: System.Reflection.AssemblyProduct("FZO Launcher")]
-[assembly: System.Reflection.AssemblyVersion("1.2.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.2.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.3.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.3.0")]
 
 namespace FZO {
     public class Settings {
@@ -148,7 +148,7 @@ namespace FZO {
             launcherUpdate.Click += async delegate {
                 if (availableLauncher == null) await CheckLauncher(true); else await InstallLauncher();
             };
-            LabelAt(side, "FZO LAUNCHER  /  1.2.2", 24, 539, 210, 22, 9, MutedColor);
+            LabelAt(side, "FZO LAUNCHER  /  1.2.3", 24, 539, 210, 22, 9, MutedColor);
             LabelAt(this, "ТВОЙ СЕРВЕР. ТВОЯ ИГРА.", 282, 37, 400, 22, 9, AccentColor);
             menu = ButtonAt(this, "☰  Меню", 750, 27, 116, 40, false); menu.AccessibleName = "Меню и настройки";
             title = LabelAt(this, "Industrial", 279, 100, 585, 55, 30, TextColor);
@@ -309,6 +309,7 @@ namespace FZO {
             var exitState = new GameExitState();
             var reportsBefore = GameExitState.CrashReports(root, id);
             using (var clientLock = new FileStream(Path.Combine(root, ".fzo-lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            using (var statsLock = PlayerStats.Open(Settings.Folder, id, root))
             using (var log = new StreamWriter(Path.Combine(logDir, "launcher-game.log"), false, new UTF8Encoding(false)))
             using (var process = new Process { StartInfo = info }) {
                 object gate = new object();
@@ -390,7 +391,8 @@ namespace FZO {
         }
     }
     public static class ClientFolders {
-        public static void Copy(string sourceRoot, string targetRoot) {
+        public static void Copy(string sourceRoot, string targetRoot, string settingsFolder = null) {
+            settingsFolder = settingsFolder ?? Settings.Folder;
             string source = Path.GetFullPath(sourceRoot).TrimEnd('\\') + "\\", target = Path.GetFullPath(targetRoot).TrimEnd('\\') + "\\";
             if (source.Equals(target, StringComparison.OrdinalIgnoreCase) || target.StartsWith(source, StringComparison.OrdinalIgnoreCase) || source.StartsWith(target, StringComparison.OrdinalIgnoreCase))
                 throw new IOException("Выберите отдельную папку, вне текущей папки клиентов.");
@@ -408,7 +410,7 @@ namespace FZO {
                     locks.Add(new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
                     Updater.Recover(client);
                 }
-                foreach (string id in ids) CopyTree(Path.Combine(source, id), Path.Combine(staging, id));
+                foreach (string id in ids) CopyTree(Path.Combine(source, id), Path.Combine(staging, id), Path.Combine(source, id, PlayerStats.Relative(id)), id, settingsFolder);
                 foreach (string id in ids) { Directory.Move(Path.Combine(staging, id), Path.Combine(target, id)); moved.Add(id); }
             } catch {
                 // Only our newly created directories are moved back. Existing targets are never touched.
@@ -424,7 +426,7 @@ namespace FZO {
             foreach (string file in Directory.GetFiles(path)) Updater.CheckNoLinks(file);
             foreach (string dir in Directory.GetDirectories(path)) CheckTree(dir);
         }
-        static void CopyTree(string source, string target) {
+        static void CopyTree(string source, string target, string statsPath, string id, string settingsFolder) {
             Updater.CheckNoLinks(source); Directory.CreateDirectory(target);
             foreach (string file in Directory.GetFiles(source)) {
                 Updater.CheckNoLinks(file);
@@ -435,7 +437,8 @@ namespace FZO {
             }
             foreach (string directory in Directory.GetDirectories(source)) {
                 if (Path.GetFileName(directory) == ".fzo-work") continue;
-                CopyTree(directory, Path.Combine(target, Path.GetFileName(directory)));
+                if (String.Equals(directory, statsPath, StringComparison.OrdinalIgnoreCase) && PlayerStats.IsLinked(directory, settingsFolder, id)) continue;
+                CopyTree(directory, Path.Combine(target, Path.GetFileName(directory)), statsPath, id, settingsFolder);
             }
         }
     }
