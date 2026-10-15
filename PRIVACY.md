@@ -6,7 +6,9 @@ passwords, server `/login` passwords, Microsoft credentials or administrator
 passwords. There is no analytics SDK or advertising.
 
 On opening the launcher or changing server selection it requests public server
-status over HTTPS. On Play or Verify Files it requests a signed catalog,
+status and a signed catalog over HTTPS to check the launcher version. Clicking
+Update downloads the new launcher EXE after confirmation. On Play or Verify Files
+it requests a signed catalog,
 the selected manifest and the missing/changed objects. The site's operator
 can see normal network metadata (such as IP address and HTTP user agent) in
 server access logs. A server-status request happens automatically at startup.

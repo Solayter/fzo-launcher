@@ -1,6 +1,7 @@
 # Security policy
 
-Supported release: 1.1.x. Upgrade from 1.0.x to enable authenticated updates.
+Supported release: 1.2.x. Upgrade from 1.0.x to enable authenticated updates;
+upgrade from 1.1.x to enable launcher self-updates.
 
 Do not publish exploit details, tokens, private keys, user data or full private
 logs in public issues. Contact the maintainer through a private GitHub channel
@@ -27,6 +28,14 @@ traversal, symbolic links/junctions in client paths, incorrect manifest hashes,
 and downloaded files with incorrect length or hash. Updates are staged and
 rolled back after a failed/interrupted commit. These checks are not a sandbox:
 authenticated game binaries execute with the user's rights.
+
+Self-updates use the same pinned RSA key and authenticated catalog, with size,
+hash and assembly-version checks before executing the staged helper. The helper
+rechecks trust and bytes, verifies the old file has not changed, rejects older or
+equal versions, and atomically replaces only the launcher EXE. A backup is kept;
+settings and game clients are outside this operation. No administrator elevation,
+PowerShell replacement script, arbitrary download URL, or unsigned fallback is
+used. Compromise of the signing identity can authorize executable updates too.
 
 The cache prevents rollback after observing a newer sequence. Deleting the
 cache removes that local memory; a first launch relies on signed expiry.

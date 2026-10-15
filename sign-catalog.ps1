@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory=$true)][string]$KeyFile,
     [string]$PublicKeyFile,
     [string]$CatalogFile,
-    [string]$OutputFile
+    [string]$OutputFile,
+    [string]$PreserveLauncherFrom
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Security
@@ -56,6 +57,17 @@ try {
         if ($rsa.KeySize -ne 3072) { throw 'Unexpected key size.' }
         $catalog = [IO.File]::ReadAllText([IO.Path]::GetFullPath($CatalogFile)) | ConvertFrom-Json
         if ($catalog.schema -ne 1 -or $catalog.servers.Count -ne 2) { throw 'Invalid catalog.' }
+        if ($PreserveLauncherFrom) {
+            # Never re-sign launcher metadata taken from an unauthenticated website file.
+            $previous = [IO.File]::ReadAllText([IO.Path]::GetFullPath($PreserveLauncherFrom)) | ConvertFrom-Json
+            if ($previous.schema -ne 1 -or $previous.algorithm -ne 'RSA-SHA256') { throw 'Invalid previous catalog.' }
+            $previousPayload = [Convert]::FromBase64String($previous.payload)
+            if (-not $rsa.VerifyData($previousPayload, [Security.Cryptography.CryptoConfig]::MapNameToOID('SHA256'), [Convert]::FromBase64String($previous.signature))) {
+                throw 'Previous catalog signature is invalid; refusing to preserve launcher metadata.'
+            }
+            $previousCatalog = [Text.Encoding]::UTF8.GetString($previousPayload) | ConvertFrom-Json
+            if ($previousCatalog.launcher) { $catalog | Add-Member -NotePropertyName launcher -NotePropertyValue $previousCatalog.launcher -Force }
+        }
         $statePath = $fullKey + '.state.json'
         $sequence = 1L
         if (Test-Path -LiteralPath $statePath) { $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json; $sequence = [long]$state.sequence + 1 }

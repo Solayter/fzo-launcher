@@ -5,7 +5,7 @@ Written in C# / Windows Forms for .NET Framework 4.7.2 or newer.
 
 Features: server selection, saved nickname, memory limit, configurable client
 directory, copying existing installations, file verification, incremental updates,
-game logs, and recovery after interrupted updates.
+game logs, recovery after interrupted updates, and authenticated launcher self-updates.
 
 Official website: https://friendzone-order.duckdns.org/
 Repository: https://github.com/Solayter/fzo-launcher
@@ -46,6 +46,33 @@ manually: old launchers do not gain signature verification automatically.
 
 See [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md), and
 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md).
+
+## Launcher self-updates (1.2.0+)
+
+The launcher checks its own version at startup. The sidebar button also allows
+manual checks. A new version is downloaded only after the user confirms; updates
+are disabled during game installation and gameplay. Failures to check do not
+prevent playing.
+
+The signed catalog's optional `launcher` entry authenticates a four-part assembly
+`version`, `sha256` and `size`. The EXE comes from the same content-addressed object
+store as game files. A staged copy verifies the signed catalog and its own bytes
+again, waits for the old launcher to exit, then atomically replaces the original
+EXE and restarts it. The original is retained alongside it as `.backup-<id>`.
+An immediate process-start failure restores that backup. A later startup crash
+requires manual recovery from the backup. Protected installation folders may
+require moving the launcher to a user-writable folder; no elevation is requested.
+Settings and game files are not replaced. Verified staging files remain under
+`%LOCALAPPDATA%\FZO\launcher\self-update-*` and can be deleted with the launcher
+closed. The config format remains unchanged in this release.
+
+Users of 1.1.x and earlier must manually download 1.2.0 once to gain this feature.
+Publish a launcher release using `publish.py` with both `--launcher-exe` (the final
+reviewed CI artifact, after Authenticode signing when available) and
+`--launcher-version 1.2.0.0`, alongside the normal client arguments. A game-only
+publication preserves the previous launcher entry only after the signer verifies
+the previous catalog's signature. Always increment the assembly version for new
+launcher binaries. Keep the previous download available for recovery.
 
 ## Data and uninstall
 

@@ -13,8 +13,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("FZO Launcher")]
 [assembly: System.Reflection.AssemblyProduct("FZO Launcher")]
-[assembly: System.Reflection.AssemblyVersion("1.1.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.1.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.0.0")]
 
 namespace FZO {
     public class Settings {
@@ -108,7 +108,9 @@ namespace FZO {
         readonly Settings settings;
         readonly RadioButton beta, industrial;
         readonly TextBox nickname;
-        readonly Button play, menu, cancel;
+        readonly Button play, menu, cancel, launcherUpdate;
+        LauncherRelease availableLauncher;
+        bool checkingLauncher;
         readonly Label title, description, address, status, detail, serverState;
         readonly ProgressBar progress;
         CancellationTokenSource cancellation;
@@ -140,7 +142,12 @@ namespace FZO {
             LabelAt(side, "Выбери свой мир", 24, 173, 210, 24, 10, MutedColor);
             beta = ServerChoice(side, "BETA 1.7.3\nКлассический\nMinecraft", 228);
             industrial = ServerChoice(side, "INDUSTRIAL 1.4.7\nМоды, заводы\nи технологии", 340);
-            LabelAt(side, "FZO LAUNCHER  /  1.1.0", 24, 539, 210, 22, 9, MutedColor);
+            launcherUpdate = ButtonAt(side, "Проверить лаунчер", 18, 464, 208, 54, false);
+            launcherUpdate.Font = new Font("Segoe UI", 9);
+            launcherUpdate.Click += async delegate {
+                if (availableLauncher == null) await CheckLauncher(true); else await InstallLauncher();
+            };
+            LabelAt(side, "FZO LAUNCHER  /  1.2.0", 24, 539, 210, 22, 9, MutedColor);
             LabelAt(this, "ТВОЙ СЕРВЕР. ТВОЯ ИГРА.", 282, 37, 400, 22, 9, AccentColor);
             menu = ButtonAt(this, "☰  Меню", 750, 27, 116, 40, false); menu.AccessibleName = "Меню и настройки";
             title = LabelAt(this, "Industrial", 279, 100, 585, 55, 30, TextColor);
@@ -158,7 +165,7 @@ namespace FZO {
             industrial.Checked = settings.Server != "beta"; beta.Checked = settings.Server == "beta";
             beta.CheckedChanged += async delegate { if (beta.Checked) { RefreshServer(); if (!preview && Visible) await LoadStatus(); } };
             industrial.CheckedChanged += async delegate { if (industrial.Checked) { RefreshServer(); if (!preview && Visible) await LoadStatus(); } };
-            if (!preview) Shown += async delegate { await LoadStatus(); };
+            if (!preview) Shown += async delegate { await Task.WhenAll(LoadStatus(), CheckLauncher(false)); };
             menu.Click += delegate { OpenSettings(); };
             play.Click += async delegate { await RunUpdate(true); };
             cancel.Click += delegate { if (cancellation != null) { cancellation.Cancel(); cancel.Enabled = false; status.Text = "Отменяем загрузку…"; } };
@@ -180,6 +187,44 @@ namespace FZO {
             address.Text = "friendzone-order.duckdns.org:" + (classic ? "25565" : "25566");
             beta.ForeColor = beta.Checked ? TextColor : MutedColor; industrial.ForeColor = industrial.Checked ? TextColor : MutedColor;
         }
+        async Task CheckLauncher(bool manual) {
+            if (busy || running || checkingLauncher) return;
+            checkingLauncher = true; launcherUpdate.Enabled = false; launcherUpdate.Text = "Проверяем версию…";
+            try {
+                using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+                using (var web = new WebTransport("https://friendzone-order.duckdns.org/")) {
+                    var catalog = await new Updater(web, null, Path.Combine(Settings.Folder, "trusted-catalog.json")).GetCatalog(timeout.Token);
+                    availableLauncher = LauncherUpdate.Newer(catalog.launcher, LauncherUpdate.Current) ? catalog.launcher : null;
+                    launcherUpdate.Text = availableLauncher == null ? "Лаунчер обновлён · проверить" : "Обновить лаунчер\nдо " + new Version(availableLauncher.version).ToString(3);
+                    if (manual && availableLauncher == null) MessageBox.Show(this, "Установлена свежая версия лаунчера.", "FZO Launcher");
+                }
+            } catch (Exception ex) {
+                availableLauncher = null; launcherUpdate.Text = "Повторить проверку версии";
+                if (manual) ShowError(ex);
+            } finally { checkingLauncher = false; if (!IsDisposed) launcherUpdate.Enabled = !busy && !running; }
+        }
+        async Task InstallLauncher() {
+            if (busy || running || checkingLauncher || availableLauncher == null) return;
+            if (MessageBox.Show(this, "Скачать новую версию и перезапустить лаунчер?\nНастройки и игровые клиенты сохранятся.",
+                "Обновление лаунчера", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            cancellation = new CancellationTokenSource(); SetBusy(true);
+            status.Text = "Скачиваем обновление лаунчера"; detail.Text = "Проверяем подпись каталога и SHA-256 файла";
+            progress.Value = 0;
+            try {
+                settings.Nickname = nickname.Text.Trim(); settings.Server = Selected; settings.Save();
+                using (var web = new WebTransport("https://friendzone-order.duckdns.org/")) {
+                    long done = 0;
+                    IProgress<int> report = new Progress<int>(n => { done += n; detail.Text = "Скачано " + (done / 1024) + " КБ · проверка SHA-256"; });
+                    string staged = await LauncherUpdate.Prepare(web, Settings.Folder, UpdateTrust.PublicKey(),
+                        Path.Combine(Settings.Folder, "trusted-catalog.json"), LauncherUpdate.Current, n => report.Report(n), cancellation.Token);
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    LauncherUpdate.StartHelper(staged);
+                }
+                SetBusy(false); Close();
+            } catch (OperationCanceledException) { status.Text = "Обновление лаунчера отменено"; }
+            catch (Exception ex) { status.Text = "Лаунчер не обновлён"; ShowError(ex); }
+            finally { SetBusy(false); cancellation.Dispose(); cancellation = null; }
+        }
         async Task LoadStatus() {
             string id = Selected; serverState.Text = "Проверяем статус сервера…";
             try {
@@ -194,6 +239,7 @@ namespace FZO {
             } catch { if (!IsDisposed && id == Selected) serverState.Text = "Статус сервера недоступен"; }
         }
         void SetBusy(bool value) {
+            launcherUpdate.Enabled = !value && !running && !checkingLauncher;
             busy = value; play.Enabled = !value && !running; menu.Enabled = !value && !running;
             nickname.Enabled = !value && !running; beta.Enabled = !value && !running; industrial.Enabled = !value && !running;
             cancel.Enabled = value; play.Text = value ? "Проверка и обновление…" : "Играть  →";
@@ -395,6 +441,7 @@ namespace FZO {
     static class Program {
         [STAThread] static int Main(string[] args) {
             Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
+            if (args.Length > 0 && args[0] == "--apply-update") return LauncherUpdate.Apply(args);
             if (args.Length == 2 && args[0] == "--preview") {
                 using (var form = new LauncherForm(new Settings { Nickname = "Player" }, true)) {
                     Render(form, args[1]);

@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 namespace FZO {
     public class CatalogEnvelope { public int schema; public string algorithm, payload, signature; }
     public static class UpdateTrust {
+        internal static readonly object CacheGate = new object();
         public static long UnixTime() { return (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds; }
         public static string PublicKey() {
             using (var stream = typeof(UpdateTrust).Assembly.GetManifestResourceStream("update-public-key.xml")) {
