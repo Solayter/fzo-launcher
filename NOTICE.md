@@ -12,6 +12,11 @@ that the community emblem may be distributed under this license. If that is
 uncertain, replace the artwork with a clearly licensed alternative before
 submission; no claim of verified third-party rights is made here.
 
+`assets/neuro-cube*` is AI-assisted artwork derived from the cube in the owl
+image, generated with the built-in image_gen tool. The prompt is retained with
+the assets. The same GPL-3.0-only rights qualification applies. The original
+Java icon helper is GPL-3.0-only and contains no Minecraft code.
+
 Windows/.NET Framework are system dependencies. Their licenses are unchanged.
 Minecraft is a trademark of Mojang/Microsoft; this community project is not
 affiliated with or endorsed by Mojang/Microsoft.

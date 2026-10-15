@@ -174,9 +174,9 @@ class Tests {
 
         Assert(!LauncherUpdate.Newer(null, new Version("1.1.0.0")), "legacy catalog without launcher release is supported");
         byte[] candidate = File.ReadAllBytes(typeof(Tests).Assembly.Location);
-        var release = new LauncherRelease { version = "1.2.0.0", sha256 = Updater.Hash(candidate), size = candidate.Length };
+        var release = new LauncherRelease { version = typeof(Tests).Assembly.GetName().Version.ToString(), sha256 = Updater.Hash(candidate), size = candidate.Length };
         Assert(LauncherUpdate.Newer(release, new Version("1.1.0.0")), "new launcher version is detected");
-        Assert(!LauncherUpdate.Newer(release, new Version("1.2.0.0")) && !LauncherUpdate.Newer(release, new Version("1.3.0.0")), "same or older launcher is never offered");
+        Assert(!LauncherUpdate.Newer(release, typeof(Tests).Assembly.GetName().Version) && !LauncherUpdate.Newer(release, new Version("1.3.0.0")), "same or older launcher is never offered");
         Assert(Throws(() => LauncherUpdate.Validate(new LauncherRelease { version = "bad", sha256 = release.sha256, size = release.size })), "invalid launcher version is rejected");
         Assert(Throws(() => LauncherUpdate.Validate(new LauncherRelease { version = release.version, sha256 = "bad", size = release.size })), "invalid launcher hash is rejected");
         Assert(Throws(() => LauncherUpdate.Validate(new LauncherRelease { version = release.version, sha256 = release.sha256, size = 100000000 })), "oversized launcher is rejected");
