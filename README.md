@@ -5,7 +5,8 @@ Written in C# / Windows Forms for .NET Framework 4.7.2 or newer.
 
 Features: server selection, saved nickname, memory limit, configurable client
 directory, copying existing installations, file verification, incremental updates,
-game logs, recovery after interrupted updates, and authenticated launcher self-updates.
+game logs, recovery after interrupted updates, authenticated launcher self-updates,
+and a standalone cyber cube icon for game windows (1.2.1+).
 
 Official website: https://friendzone-order.duckdns.org/
 Repository: https://github.com/Solayter/fzo-launcher
@@ -19,8 +20,11 @@ On Windows, with .NET Framework 4.7.2+ installed, run:
 .\build.ps1
 ```
 
-The build uses the C# compiler included with .NET Framework. It does not need
-NuGet dependencies, a Minecraft installation, server credentials or signing keys.
+The build uses the C# compiler included with .NET Framework and JDK 7/8 for
+the original Java window-icon helper (Java 6 class format). Set `FZO_JAVA_HOME`
+to the JDK directory; GitHub CI uses its preinstalled `JAVA_HOME_8_X64`. Players
+do not need a separate JDK. The build does not need NuGet dependencies, Minecraft,
+server credentials or signing keys.
 Output: `dist/FZO-Launcher.exe`. Artwork and the **public** update verification
 key are embedded in the executable. No private keys belong in this repository.
 
@@ -46,6 +50,17 @@ manually: old launchers do not gain signature verification automatically.
 
 See [SECURITY.md](SECURITY.md), [PRIVACY.md](PRIVACY.md), and
 [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md).
+
+## Game window icon (1.2.1+)
+
+The launcher extracts its embedded, original Java helper to a content-addressed
+JAR under `%LOCALAPPDATA%\FZO\launcher\bootstrap`. Its bytes are verified against
+the embedded copy before every use. The helper invokes the original Minecraft
+main with the same arguments and sets the standalone cyber cube on AWT windows
+using Java's window-icon API. It handles recreated windows on the AWT event
+thread. Game JARs, Java executables, worlds and settings are not patched. The
+launcher and its shortcuts keep the owl artwork. Start the game through this
+launcher to use the cube icon.
 
 ## Launcher self-updates (1.2.0+)
 

@@ -14,6 +14,8 @@ ALLOWED = {
     '.gitignore', '.gitattributes', '.github/CODEOWNERS', '.github/workflows/build.yml',
     'README.md', 'LICENSE', 'NOTICE.md', 'SECURITY.md', 'PRIVACY.md',
     'CODE_SIGNING_POLICY.md', 'SIGNPATH_APPLICATION.md',
+    'GameBootstrap.cs', 'java/fzo/launcher/ClientBootstrap.java', 'build-game-bootstrap.ps1', 'prepare-cube-assets.ps1', 'assets/neuro-cube-master.png',
+    'assets/neuro-cube.png', 'assets/neuro-cube.ico', 'assets/neuro-cube-prompt.txt',
     'Launcher.cs', 'Updater.cs', 'LauncherUpdate.cs', 'SignedCatalog.cs', 'app.manifest',
     'FZO-Launcher.exe.config', 'build.ps1', 'test.ps1', 'publish.py',
     'sign-catalog.ps1', 'prepare-owl-assets.ps1',

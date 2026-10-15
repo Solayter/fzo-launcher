@@ -13,8 +13,8 @@ using System.Windows.Forms;
 
 [assembly: System.Reflection.AssemblyTitle("FZO Launcher")]
 [assembly: System.Reflection.AssemblyProduct("FZO Launcher")]
-[assembly: System.Reflection.AssemblyVersion("1.2.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("1.2.0.0")]
+[assembly: System.Reflection.AssemblyVersion("1.2.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("1.2.1.0")]
 
 namespace FZO {
     public class Settings {
@@ -45,7 +45,7 @@ namespace FZO {
             }
             return result.Append('\\', slashes * 2).Append('"').ToString();
         }
-        public static ProcessStartInfo StartInfo(string id, string root, string nickname, int memory) {
+        public static ProcessStartInfo StartInfo(string id, string root, string nickname, int memory, string bootstrap = null) {
             if (id != "beta" && id != "industrial") throw new ArgumentException("Неизвестный сервер.");
             if (!Regex.IsMatch(nickname, "^[A-Za-z0-9_]{3,16}$")) throw new ArgumentException("Ник: 3–16 латинских букв, цифр или подчёркиваний.");
             if (memory < 512 || memory > 8192) throw new ArgumentException("Недопустимый объём памяти.");
@@ -65,7 +65,8 @@ namespace FZO {
                 args.Add("-Duser.home=" + Path.Combine(root, "data"));
                 cp = String.Join(";", new[] { @"mods\beta_OptiFine_1.7.3_HD_S_G.zip", @"game\minecraft.jar", @"bin\lwjgl.jar", @"bin\lwjgl_util.jar", @"bin\jinput.jar", @"bin\jutils.jar" }.Select(p => Path.Combine(root, p)));
             }
-            args.AddRange(new[] { "-cp", cp, "net.minecraft.client.Minecraft", nickname, "-" });
+            if (bootstrap != null) cp = bootstrap + ";" + cp;
+            args.AddRange(new[] { "-cp", cp, bootstrap == null ? "net.minecraft.client.Minecraft" : "fzo.launcher.ClientBootstrap", nickname, "-" });
             var info = new ProcessStartInfo(java, String.Join(" ", args.Select(Quote))) {
                 WorkingDirectory = game, UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardOutput = true, RedirectStandardError = true
@@ -147,7 +148,7 @@ namespace FZO {
             launcherUpdate.Click += async delegate {
                 if (availableLauncher == null) await CheckLauncher(true); else await InstallLauncher();
             };
-            LabelAt(side, "FZO LAUNCHER  /  1.2.0", 24, 539, 210, 22, 9, MutedColor);
+            LabelAt(side, "FZO LAUNCHER  /  1.2.1", 24, 539, 210, 22, 9, MutedColor);
             LabelAt(this, "ТВОЙ СЕРВЕР. ТВОЯ ИГРА.", 282, 37, 400, 22, 9, AccentColor);
             menu = ButtonAt(this, "☰  Меню", 750, 27, 116, 40, false); menu.AccessibleName = "Меню и настройки";
             title = LabelAt(this, "Industrial", 279, 100, 585, 55, 30, TextColor);
@@ -301,7 +302,7 @@ namespace FZO {
             finally { cancellation.Dispose(); cancellation = null; SetBusy(false); }
         }
         async Task Launch(string id, string root, string nick) {
-            var info = Game.StartInfo(id, root, nick, settings.MemoryMB);
+            var info = Game.StartInfo(id, root, nick, settings.MemoryMB, GameBootstrap.Prepare(Settings.Folder));
             if (!File.Exists(info.FileName)) throw new FileNotFoundException("Java клиента не найдена. Запустите проверку файлов.");
             string logDir = Path.Combine(root, "logs"); Directory.CreateDirectory(logDir);
             if (id == "beta") Directory.CreateDirectory(Path.Combine(root, @"data\.minecraft"));
