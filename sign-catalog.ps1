@@ -16,7 +16,13 @@ function Write-Atomic($path, [string]$text) {
     $path = [IO.Path]::GetFullPath($path)
     $temporary = $path + '.tmp'
     [IO.File]::WriteAllText($temporary, $text, $encoding)
-    if ([IO.File]::Exists($path)) { [IO.File]::Replace($temporary, $path, $null) }
+    if ([IO.File]::Exists($path)) {
+        # PowerShell 7 can bind $null as an empty string for this .NET overload.
+        # A concrete backup path keeps replacement atomic on every publication.
+        $backup = $path + '.previous'
+        [IO.File]::Replace($temporary, $path, $backup)
+        [IO.File]::Delete($backup)
+    }
     else { [IO.File]::Move($temporary, $path) }
 }
 if ($Mode -eq 'Init') {
